@@ -1,0 +1,22 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\*\shell\AddToSendList]
+@="添加到传输列表"
+"Icon"="C:\\Users\\liqc100\\.openclaw\\workspace\\file-transfer-app\\dist\\win-unpacked\\file-transfer.exe,0"
+
+[HKEY_CLASSES_ROOT\*\shell\AddToSendList\command]
+@="wscript.exe \"C:\\Users\\liqc100\\.openclaw\\workspace\\file-transfer-app\\dist\\win-unpacked\\sendto.vbs\" \"%1\""
+
+[HKEY_CLASSES_ROOT\Directory\shell\AddToSendList]
+@="添加到传输列表"
+"Icon"="C:\\Users\\liqc100\\.openclaw\\workspace\\file-transfer-app\\dist\\win-unpacked\\file-transfer.exe,0"
+
+[HKEY_CLASSES_ROOT\Directory\shell\AddToSendList\command]
+@="wscript.exe \"C:\\Users\\liqc100\\.openclaw\\workspace\\file-transfer-app\\dist\\win-unpacked\\sendto.vbs\" \"%1\""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\AddToSendList]
+@="添加文件到传输列表"
+"Icon"="C:\\Users\\liqc100\\.openclaw\\workspace\\file-transfer-app\\dist\\win-unpacked\\file-transfer.exe,0"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\AddToSendList\command]
+@="wscript.exe \"C:\\Users\\liqc100\\.openclaw\\workspace\\file-transfer-app\\dist\\win-unpacked\\sendto.vbs\" \"%V\""

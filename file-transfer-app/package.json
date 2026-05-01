@@ -1,0 +1,54 @@
+{
+  "name": "file-transfer",
+  "version": "1.0.0",
+  "description": "局域网文件传输工具 (Win11)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:win64": "electron-builder --win --x64",
+    "build:nsis": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.xiamu.filetransfer",
+    "productName": "文件传输",
+    "copyright": "Copyright © 2026",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/.cache/**",
+      "!dist/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "文件传输"
+    }
+  },
+  "dependencies": {
+    "basic-ftp": "^6.0.0",
+    "ftp-client": "^0.2.2",
+    "ssh2": "^1.17.0",
+    "webdav": "^5.9.0"
+  }
+}

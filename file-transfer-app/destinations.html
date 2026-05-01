@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>传输目标管理</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="destinations.css">
+</head>
+<body>
+  <!-- 标题栏 -->
+  <div class="titlebar">
+    <div class="titlebar-drag"></div>
+    <div class="titlebar-buttons">
+      <button class="tb-btn tb-close" id="btnDestClose" title="关闭">
+        <svg viewBox="0 0 11 11" width="11" height="11"><path d="M0 0L11 11M11 0L0 11" stroke="currentColor" stroke-width="1"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="dest-container">
+    <!-- 表头 -->
+    <div class="dest-header">
+      <div class="dest-col-icon"></div>
+      <div class="dest-col-name">Name</div>
+      <div class="dest-col-url">URL</div>
+    </div>
+
+    <!-- 目标列表 -->
+    <div class="dest-list" id="destList">
+      <div class="dest-empty" id="destEmpty">
+        <p>暂无传输目标</p>
+        <p class="dest-empty-hint">点击下方 [+] 添加</p>
+      </div>
+    </div>
+
+    <!-- 底部按钮 -->
+    <div class="dest-footer">
+      <div class="dest-footer-left">
+        <div class="add-menu-wrap">
+          <button id="btnAddDest" class="dest-btn" title="添加目标">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <div class="add-menu" id="addMenu" style="display:none;">
+            <div class="add-menu-item" data-type="local">🌐 本地IP (局域网)</div>
+            <div class="add-menu-item" data-type="ftp">📁 FTP</div>
+            <div class="add-menu-item" data-type="sftp">🔒 SFTP</div>
+            <div class="add-menu-item" data-type="webdav">☁️ WebDAV</div>
+          </div>
+        </div>
+        <button id="btnDeleteDest" class="dest-btn" title="删除选中">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+        </button>
+      </div>
+      <div class="dest-footer-right">
+        <button id="btnEditDest" class="dest-btn dest-btn-edit" title="编辑选中">✏️ 编辑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增/编辑弹窗 - SFTP 风格 -->
+  <div class="modal-overlay" id="modalOverlay" style="display:none;">
+    <div class="modal modal-sftp">
+      <!-- 标题图标 -->
+      <div class="modal-header">
+        <span class="modal-icon" id="modalIcon">🔒</span>
+        <span class="modal-type-label" id="modalTypeLabel">SFTP</span>
+      </div>
+
+      <div class="modal-body-sftp">
+        <!-- Name -->
+        <div class="form-row-sftp">
+          <label>Name:</label>
+          <input type="text" id="formName" placeholder="例如: AC86U (SFTP)" />
+        </div>
+
+        <!-- Host : Port -->
+        <div class="form-row-sftp">
+          <label>Host:</label>
+          <div class="host-port-row">
+            <input type="text" id="formHost" placeholder="www.example.com" class="input-host" />
+            <span class="port-sep">:</span>
+            <input type="number" id="formPort" placeholder="22" class="input-port" />
+          </div>
+        </div>
+
+        <!-- Remote Path -->
+        <div class="form-row-sftp">
+          <label>Remote Path:</label>
+          <input type="text" id="formPath" placeholder="/" />
+        </div>
+
+        <!-- Login -->
+        <div class="form-row-sftp" id="loginRow">
+          <label>Login:</label>
+          <input type="text" id="formUser" placeholder="admin" />
+        </div>
+
+        <!-- Authentication: Password / Key file -->
+        <div class="form-row-sftp" id="authRow">
+          <label>Authentication:</label>
+          <div class="auth-options">
+            <label class="radio-label">
+              <input type="radio" name="authType" value="password" id="authPassword" checked />
+              <span>Password</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="authType" value="keyfile" id="authKeyfile" />
+              <span>Key file</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="form-row-sftp" id="passwordRow">
+          <label></label>
+          <input type="password" id="formPass" placeholder="••••••" />
+        </div>
+
+        <!-- Key file path -->
+        <div class="form-row-sftp" id="keyfileRow" style="display:none;">
+          <label></label>
+          <div class="keyfile-row">
+            <input type="text" id="formKeyPath" placeholder="C:\Users\..." class="input-keyfile" />
+            <button id="btnBrowseKey" class="dest-btn btn-browse">浏览...</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cancel / Update 按钮 -->
+      <div class="modal-footer-sftp">
+        <button id="btnModalCancel" class="dest-btn">Cancel</button>
+        <button id="btnModalSave" class="dest-btn dest-btn-primary"><span id="btnSaveLabel">Update</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="destinations.js"></script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+/* ============================================================
+   destinations.css - 目标管理面板样式 v2 (SFTP 风格弹窗)
+   ============================================================ */
+
+.dest-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 32px);
+  padding: 0 16px 16px 16px;
+}
+
+/* 表头 */
+.dest-header {
+  display: grid;
+  grid-template-columns: 28px 1fr 1.6fr;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 列表 */
+.dest-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.dest-list::-webkit-scrollbar { width: 6px; }
+.dest-list::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 3px; }
+
+/* 空状态 */
+.dest-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.dest-empty-hint { font-size: 12px; margin-top: 4px; opacity: 0.6; }
+
+/* 目标行 */
+.dest-item {
+  display: grid;
+  grid-template-columns: 28px 1fr 1.6fr;
+  padding: 9px 12px;
+  font-size: 13px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  cursor: default;
+  transition: background 0.1s;
+}
+.dest-item:hover { background: var(--bg-hover); }
+.dest-item.selected { background: var(--accent-bg); }
+
+.dest-icon { font-size: 16px; text-align: center; }
+.dest-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding-right: 12px; font-weight: 500;
+}
+.dest-url {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-secondary); font-size: 12px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* 底部栏 */
+.dest-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0 0 0;
+}
+.dest-footer-left, .dest-footer-right { display: flex; gap: 6px; }
+
+.dest-btn {
+  height: 32px; padding: 0 14px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-secondary); color: var(--text-primary);
+  font-size: 12px; font-family: var(--font); cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+  transition: all 0.15s;
+}
+.dest-btn:hover { background: var(--bg-hover); }
+.dest-btn-primary {
+  background: var(--accent); color: #000; border-color: var(--accent);
+  font-weight: 600;
+}
+.dest-btn-primary:hover { background: var(--accent-hover); }
+
+/* 添加菜单 */
+.add-menu-wrap { position: relative; }
+.add-menu {
+  position: absolute; bottom: 40px; left: 0;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 4px 0;
+  min-width: 180px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 100;
+}
+.add-menu-item {
+  padding: 8px 16px; font-size: 13px; cursor: pointer;
+  transition: background 0.1s;
+}
+.add-menu-item:hover { background: var(--bg-hover); }
+
+/* ============================================================
+   SFTP 风格弹窗
+   ============================================================ */
+
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200;
+}
+
+.modal-sftp {
+  width: 480px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 32px 24px 32px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+/* 标题：图标 + 类型名 */
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.modal-icon {
+  font-size: 28px;
+}
+
+.modal-type-label {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* 表单体 */
+.modal-body-sftp {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 每一行：label 左对齐，input 右边 */
+.form-row-sftp {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.form-row-sftp > label {
+  width: 120px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: right;
+  padding-right: 4px;
+}
+
+.form-row-sftp > input,
+.form-row-sftp > .host-port-row,
+.form-row-sftp > .auth-options,
+.form-row-sftp > .keyfile-row {
+  flex: 1;
+}
+
+.form-row-sftp input[type="text"],
+.form-row-sftp input[type="password"],
+.form-row-sftp input[type="number"] {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-row-sftp input:focus {
+  border-color: var(--accent);
+}
+
+.form-row-sftp input::placeholder {
+  color: var(--text-dim);
+}
+
+/* Host : Port 同一行 */
+.host-port-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.input-host {
+  flex: 1;
+  border-radius: var(--radius) 0 0 var(--radius) !important;
+  border-right: none !important;
+}
+
+.port-sep {
+  width: 24px;
+  height: 34px;
+  line-height: 34px;
+  text-align: center;
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  font-size: 14px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.input-port {
+  width: 72px !important;
+  flex: none;
+  border-radius: 0 var(--radius) var(--radius) 0 !important;
+  text-align: center;
+}
+
+/* 认证方式单选 */
+.auth-options {
+  display: flex;
+  gap: 20px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.radio-label input[type="radio"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Key file 路径 */
+.keyfile-row {
+  display: flex;
+  gap: 6px;
+}
+
+.input-keyfile {
+  flex: 1;
+}
+
+.btn-browse {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* 底部按钮 */
+.modal-footer-sftp {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 0;
+}
+
+.modal-footer-sftp .dest-btn {
+  min-width: 80px;
+  height: 34px;
+  font-size: 13px;
+  justify-content: center;
+}

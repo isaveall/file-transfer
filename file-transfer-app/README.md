@@ -3,7 +3,7 @@
 一款基于 Electron 开发的局域网文件传输工具，支持多种传输协议，操作简单便捷。
 
 ![Electron](https://img.shields.io/badge/Electron-33.4-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows%2010/11-green)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010/11%20%7C%20macOS-green)
 
 ## ✨ 功能特性
 
@@ -14,7 +14,7 @@
 - ☁️ **WebDAV 上传** - 支持坚果云等 WebDAV 服务
 
 ### 核心功能
-- 📂 **文件夹传输** - 保留完整目录结构
+- 📂 **文件夹传输** - 保留完整目录结构，拖拽文件夹作为整体对象
 - 🔄 **断点续传** - 支持传输中断后继续
 - ➖ **移除选中** - 可选择性删除列表中的文件
 - 🚫 **取消传输** - 支持随时取消正在进行的传输
@@ -86,8 +86,11 @@ npm start
 # 构建 Windows 安装包
 npx electron-builder --win --x64
 
-# 复制额外文件
-assets\copy-extras.bat
+# 构建 macOS 安装包
+npm run build:mac
+
+# 复制额外文件（Windows）
+assets\\copy-extras.bat
 ```
 
 ## 📁 项目结构

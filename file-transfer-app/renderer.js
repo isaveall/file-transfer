@@ -14,8 +14,18 @@ let currentSendingIndex = -1;
 const $ = (sel) => document.querySelector(sel);
 const targetSelect = $('#targetSelect');
 const btnDestManager = $('#btnDestManager');
+const btnScanLan = $('#btnScanLan');
 const localInfo = $('#localInfo');
+const localPort = $('#localPort');
+const btnChangePort = $('#btnChangePort');
 const fileList = $('#fileList');
+
+// 立即检查按钮元素是否存在
+if (btnChangePort) {
+  btnChangePort.addEventListener('click', () => {
+    window.showStatus('✅', '端口修改功能已触发', 'info');
+  });
+}
 const dropZone = $('#dropZone');
 const btnAddFile = $('#btnAddFile');
 const btnAddFolder = $('#btnAddFolder');
@@ -153,6 +163,125 @@ async function init() {
 
   const info = await window.api.getLocalInfo();
   localInfo.textContent = `本机: ${info.name} (${info.ip})`;
+  localPort.textContent = info.port;
+
+  // 监听端口变化事件
+  window.api.onPortChanged((data) => {
+    localPort.textContent = data.port;
+  });
+
+  // 更改端口按钮事件
+  if (btnChangePort) {
+    btnChangePort.addEventListener('click', async () => {
+      
+      // 视觉反馈：按钮变色
+      btnChangePort.style.background = '#667eea';
+      btnChangePort.style.color = 'white';
+      setTimeout(() => {
+        btnChangePort.style.background = 'transparent';
+        btnChangePort.style.color = 'var(--text-dim)';
+      }, 200);
+      
+      // 创建自定义对话框
+      const dialog = document.createElement('div');
+      dialog.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      `;
+      
+      const dialogContent = document.createElement('div');
+      dialogContent.style.cssText = `
+        background: #2b2b2b;
+        padding: 24px;
+        border-radius: 10px;
+        min-width: 360px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        border: 1px solid #3f3f3f;
+      `;
+      
+      dialogContent.innerHTML = `
+        <h3 style="margin-top: 0; margin-bottom: 8px; color: #e0e0e0; font-size: 16px; font-weight: 600;">更改监听端口</h3>
+        <p style="color: #9e9e9e; margin-bottom: 20px; font-size: 13px;">请输入新的监听端口 (1024-65535)：</p>
+        <input type="number" id="portInput" value="${localPort.textContent}" 
+               style="width: 100%; padding: 10px 12px; border: 1px solid #3f3f3f; border-radius: 6px; background: #1e1e1e; color: #e0e0e0; font-size: 14px; box-sizing: border-box; outline: none; margin-bottom: 20px;"
+               min="1024" max="65535">
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button id="cancelBtn" style="padding: 8px 20px; border: 1px solid #3f3f3f; background: #383838; color: #b0b0b0; border-radius: 6px; cursor: pointer; font-size: 13px;">取消</button>
+          <button id="confirmBtn" style="padding: 8px 20px; border: none; background: #60cdff; color: #191919; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;">确定</button>
+        </div>
+      `;
+      
+      dialog.appendChild(dialogContent);
+      document.body.appendChild(dialog);
+      
+      // 绑定事件
+      const portInput = dialogContent.querySelector('#portInput');
+      const cancelBtn = dialogContent.querySelector('#cancelBtn');
+      const confirmBtn = dialogContent.querySelector('#confirmBtn');
+      
+      portInput.focus();
+      portInput.select();
+      
+      // Enter 键确认
+      portInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmBtn.click();
+        }
+      });
+      
+      cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+      });
+      
+      confirmBtn.addEventListener('click', async () => {
+        const newPort = portInput.value;
+        const portNum = parseInt(newPort);
+        
+        if (isNaN(portNum) || portNum < 1024 || portNum > 65535) {
+          alert('请输入有效的端口号 (1024-65535)');
+          return;
+        }
+        
+        try {
+          const result = await window.api.changePort(portNum);
+          if (result.success) {
+            localPort.textContent = result.port;
+            document.body.removeChild(dialog);
+            alert(`端口已更改为 ${result.port}`);
+          }
+        } catch (error) {
+          alert(`更改端口失败: ${error.message}`);
+        }
+      });
+      
+      // 点击背景关闭
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+          document.body.removeChild(dialog);
+        }
+      });
+      
+      // 按ESC关闭
+      const escHandler = (e) => {
+        if (e.key === 'Escape') {
+          document.body.removeChild(dialog);
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    });
+  } else {
+    console.error('DEBUG: btnChangePort element not found');
+  }
 
   await loadTargets();
 
@@ -160,8 +289,49 @@ async function init() {
     buildTargetList(destinations, devices);
   });
 
-  targetSelect.addEventListener('change', updateProtocolTags);
+  // 在选择变化时处理"手动输入 IP..."
+  targetSelect.addEventListener('change', async () => {
+    updateProtocolTags();
+    
+    // 当选择"手动输入 IP..."时，立即弹出对话框
+    if (targetSelect.value === 'manual:') {
+      const result = await showManualInputDialog();
+      if (result) {
+        // 创建一个临时目标选项
+        const tempValue = `lan:${result.ip}:${result.port}`;
+        const tempText = `📡 ${result.ip}:${result.port}`;
+        
+        // 检查是否已存在相同的临时选项
+        const existing = Array.from(targetSelect.options).find(opt => opt.value === tempValue);
+        if (existing) {
+          targetSelect.value = tempValue;
+        } else {
+          // 添加临时选项并选中
+          const opt = document.createElement('option');
+          opt.value = tempValue;
+          opt.textContent = tempText;
+          
+          // 插入到"手动输入"前面
+          const manualOpt = Array.from(targetSelect.options).find(o => o.value === 'manual:');
+          if (manualOpt) {
+            targetSelect.insertBefore(opt, manualOpt.nextSibling);
+          } else {
+            const lanGroup = targetSelect.querySelector('optgroup[label="🌐 局域网设备"]');
+            if (lanGroup) lanGroup.appendChild(opt);
+            else targetSelect.appendChild(opt);
+          }
+          targetSelect.value = tempValue;
+        }
+      } else {
+        // 用户取消，恢复到第一个有效选项
+        const firstValid = Array.from(targetSelect.options).find(o => o.value && o.value !== 'manual:');
+        if (firstValid) targetSelect.value = firstValid.value;
+      }
+      updateProtocolTags();
+    }
+  });
   btnDestManager.addEventListener('click', () => window.api.openDestManager());
+  btnScanLan.addEventListener('click', scanLanDevices);
   btnAddFile.addEventListener('click', addFiles);
   btnAddFolder.addEventListener('click', addFolder);
   btnRemove.addEventListener('click', removeSelected);
@@ -203,7 +373,10 @@ async function loadTargets() {
 }
 
 function buildTargetList(savedDests, discoveredDevices) {
+  const previousValue = targetSelect.value;
   targetSelect.innerHTML = '';
+  
+  let defaultId = null;
 
   if (savedDests && savedDests.length > 0) {
     const groupSaved = document.createElement('optgroup');
@@ -214,6 +387,11 @@ function buildTargetList(savedDests, discoveredDevices) {
       opt.textContent = `${typeIcons[d.type] || '❓'} ${d.name}`;
       opt.dataset.dest = JSON.stringify(d);
       groupSaved.appendChild(opt);
+      
+      // 检查是否为默认目标
+      if (d.isDefault) {
+        defaultId = d.id;
+      }
     }
     targetSelect.appendChild(groupSaved);
   }
@@ -230,12 +408,24 @@ function buildTargetList(savedDests, discoveredDevices) {
     for (const dev of discoveredDevices) {
       if (dev.id === 'manual') continue;
       const opt = document.createElement('option');
-      opt.value = `lan:${dev.ip}`;
+      opt.value = `lan:${dev.ip}:${dev.port || 34567}`;  // 包含端口号
       opt.textContent = `💻 ${dev.name}`;
+      opt.dataset.port = dev.port || 34567;  // 保存端口信息
       groupLan.appendChild(opt);
     }
   }
   targetSelect.appendChild(groupLan);
+  
+  // 如果有默认目标，且当前没有选择或之前的选择无效，则选择默认目标
+  if (defaultId) {
+    const defaultOption = `dest:${defaultId}`;
+    // 检查之前的选择是否有效
+    const isPreviousValid = Array.from(targetSelect.options).some(opt => opt.value === previousValue);
+    if (!isPreviousValid || !previousValue) {
+      targetSelect.value = defaultOption;
+    }
+  }
+  
   updateProtocolTags();
 }
 
@@ -388,36 +578,135 @@ function setupDragDrop() {
     dropZone.classList.remove('active');
     const items = e.dataTransfer.items;
     if (!items) return;
-    const newFiles = [];
-
-    const processEntry = async (entry, relPath = '') => {
-      if (entry.isFile) {
-        const file = await new Promise((resolve) => entry.file(resolve));
-        if (file) {
-          newFiles.push({
-            path: file.path || file.name,
-            name: relPath ? `${relPath}/${file.name}` : file.name,
-            size: file.size, progress: 0, status: '等待',
-          });
-        }
-      } else if (entry.isDirectory) {
-        const reader = entry.createReader();
-        const entries = await new Promise((resolve) => reader.readEntries(resolve));
-        for (const child of entries) {
-          await processEntry(child, relPath ? `${relPath}/${entry.name}` : entry.name);
-        }
-      }
-    };
-
+    
+    // 先收集所有拖入的文件/文件夹信息
+    const pendingItems = [];
+    
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry?.();
+      if (!entry) continue;
+      pendingItems.push({ entry, isDirectory: entry.isDirectory, isFile: entry.isFile, name: entry.name });
+    }
+    
+    // 异步处理所有文件/文件夹
     (async () => {
-      for (const item of items) {
-        const entry = item.webkitGetAsEntry?.();
-        if (entry) await processEntry(entry);
+      const newFiles = [];
+      
+      for (const { entry, isDirectory, isFile, name } of pendingItems) {
+        if (isDirectory) {
+          // 文件夹：递归获取子文件，尝试推算文件夹路径
+          let folderPath = null;
+          let totalSize = 0;
+          let fileCount = 0;
+          
+          const walkDir = async (dirEntry) => {
+            const reader = dirEntry.createReader();
+            const readBatch = async () => {
+              const entries = await new Promise((resolve) => reader.readEntries(resolve));
+              if (entries.length === 0) return;
+              for (const child of entries) {
+                if (child.isFile) {
+                  const file = await new Promise((resolve) => child.file(resolve));
+                  totalSize += file.size;
+                  fileCount++;
+                  if (!folderPath) {
+                    // 使用 webUtils 获取正确的文件路径
+                    const filePath = window.api.getPathForFile(file);
+                    if (filePath) {
+                      // 从第一个文件路径推算文件夹路径
+                      const idx = filePath.lastIndexOf('/' + entry.name + '/');
+                      if (idx >= 0) {
+                        folderPath = filePath.substring(0, idx + entry.name.length + 1);
+                      } else {
+                        folderPath = filePath.replace(file.name, '');
+                      }
+                    }
+                  }
+                } else if (child.isDirectory) {
+                  await walkDir(child);
+                }
+              }
+              await readBatch();
+            };
+            await readBatch();
+          };
+          await walkDir(entry);
+          
+          // 通过 IPC 验证文件夹路径
+          const folderInfo = await window.api.validateDragFolder({
+            folderPath: folderPath,
+            folderName: name
+          });
+          
+          if (folderInfo) {
+            newFiles.push({
+              path: folderInfo.path,
+              name: folderInfo.name + '/',
+              size: folderInfo.totalSize,
+              isFolder: true,
+              fileCount: folderInfo.fileCount,
+              progress: 0,
+              status: '等待',
+            });
+          } else {
+            // 验证失败，使用原始路径（可能无效）
+            newFiles.push({
+              path: folderPath || ('drag:' + name + '/'),
+              name: name + '/',
+              size: totalSize,
+              isFolder: true,
+              fileCount: fileCount,
+              progress: 0,
+              status: '路径无效',
+            });
+          }
+        } else if (isFile) {
+          // 文件：获取文件对象
+          const file = await new Promise((resolve) => entry.file(resolve));
+          // 使用 webUtils 获取正确的文件路径
+          const filePath = file ? window.api.getPathForFile(file) : null;
+          if (file && filePath) {
+            // 通过 IPC 验证文件路径
+            const fileInfo = await window.api.validateDragFile(filePath);
+            if (fileInfo) {
+              newFiles.push({
+                path: fileInfo.path,
+                name: fileInfo.name,
+                size: fileInfo.size,
+                progress: 0,
+                status: '等待',
+              });
+            } else {
+              // 验证失败，使用获取到的路径
+              newFiles.push({
+                path: filePath,
+                name: file.name,
+                size: file.size,
+                progress: 0,
+                status: '路径无效',
+              });
+            }
+          } else if (file) {
+            // 无法获取路径，标记为路径无效
+            newFiles.push({
+              path: file.name,
+              name: file.name,
+              size: file.size,
+              progress: 0,
+              status: '路径无效',
+            });
+          }
+        }
       }
+      
       if (newFiles.length > 0) {
         const existingPaths = new Set(files.map(f => f.path));
         const uniqueNewFiles = newFiles.filter(f => !existingPaths.has(f.path));
         if (uniqueNewFiles.length === 0) return;
+        if (sendCompleted) {
+          files.forEach(f => { f.progress = 0; f.status = '等待'; });
+          sendCompleted = false;
+        }
         files.push(...uniqueNewFiles);
         dropZone.style.display = 'none';
         renderFileList();
@@ -427,14 +716,139 @@ function setupDragDrop() {
   });
 }
 
+// 显示手动输入对话框
+async function showManualInputDialog() {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    `;
+    
+    const dialogContent = document.createElement('div');
+    dialogContent.style.cssText = `
+      background: #2b2b2b;
+      padding: 24px;
+      border-radius: 10px;
+      min-width: 360px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      border: 1px solid #3f3f3f;
+    `;
+    
+    dialogContent.innerHTML = `
+      <h3 style="margin-top: 0; margin-bottom: 8px; color: #e0e0e0; font-size: 16px; font-weight: 600;">手动输入目标地址</h3>
+      <p style="color: #9e9e9e; margin-bottom: 20px; font-size: 13px;">请输入目标设备的 IP 地址和端口：</p>
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; margin-bottom: 6px; color: #b0b0b0; font-size: 13px;">IP 地址</label>
+        <input type="text" id="ipInput" placeholder="例如: 192.168.1.100" 
+               style="width: 100%; padding: 10px 12px; border: 1px solid #3f3f3f; border-radius: 6px; background: #1e1e1e; color: #e0e0e0; font-size: 14px; box-sizing: border-box; outline: none;">
+      </div>
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 6px; color: #b0b0b0; font-size: 13px;">端口</label>
+        <input type="number" id="portInput" value="34567" min="1024" max="65535"
+               style="width: 100%; padding: 10px 12px; border: 1px solid #3f3f3f; border-radius: 6px; background: #1e1e1e; color: #e0e0e0; font-size: 14px; box-sizing: border-box; outline: none;">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="cancelManualBtn" style="padding: 8px 20px; border: 1px solid #3f3f3f; background: #383838; color: #b0b0b0; border-radius: 6px; cursor: pointer; font-size: 13px;">取消</button>
+        <button id="confirmManualBtn" style="padding: 8px 20px; border: none; background: #60cdff; color: #191919; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;">确定</button>
+      </div>
+    `;
+    
+    dialog.appendChild(dialogContent);
+    document.body.appendChild(dialog);
+    
+    const ipInput = dialog.querySelector('#ipInput');
+    const portInput = dialog.querySelector('#portInput');
+    const cancelBtn = dialog.querySelector('#cancelManualBtn');
+    const confirmBtn = dialog.querySelector('#confirmManualBtn');
+    
+    ipInput.focus();
+    
+    // Enter 键确认
+    const submitOnEnter = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmBtn.click();
+      }
+    };
+    ipInput.addEventListener('keydown', submitOnEnter);
+    portInput.addEventListener('keydown', submitOnEnter);
+    
+    cancelBtn.addEventListener('click', () => {
+      document.body.removeChild(dialog);
+      resolve(null);
+    });
+    
+    confirmBtn.addEventListener('click', () => {
+      const ip = ipInput.value.trim();
+      const port = parseInt(portInput.value);
+      
+      if (!ip) {
+        alert('请输入IP地址');
+        return;
+      }
+      if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+        alert('请输入有效的IP地址');
+        return;
+      }
+      if (isNaN(port) || port < 1024 || port > 65535) {
+        alert('请输入有效的端口号 (1024-65535)');
+        return;
+      }
+      
+      document.body.removeChild(dialog);
+      resolve({ ip, port });
+    });
+    
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        document.body.removeChild(dialog);
+        resolve(null);
+      }
+    });
+    
+    // ESC 键关闭
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        document.body.removeChild(dialog);
+        document.removeEventListener('keydown', escHandler);
+        resolve(null);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+  });
+}
+
 async function sendFiles() {
   const val = targetSelect.value;
   if (!val) { alert('请选择目标'); return; }
-  if (files.length === 0) { alert('请先添加文件'); return; }
 
   let targetIp = null;
   let targetUrl = null;
 
+  // 先处理手动输入的情况，在检查文件之前弹出对话框
+  if (val.startsWith('manual:')) {
+    // 显示自定义对话框输入IP和端口
+    const result = await showManualInputDialog();
+    if (!result) return;
+    
+    targetIp = result.ip;
+    const targetPort = result.port || 34567;
+    targetUrl = `local://${targetIp}:${targetPort}`;
+  }
+  
+  // 现在检查文件
+  if (files.length === 0) { alert('请先添加文件'); return; }
+
+  // 处理其他目标类型
   if (val.startsWith('dest:')) {
     const id = val.replace('dest:', '');
     const d = destinations.find(x => x.id === id);
@@ -446,13 +860,13 @@ async function sendFiles() {
       targetUrl = `${d.type}://${user}${d.host}:${d.port}${d.path || '/'}`;
     }
   } else if (val.startsWith('lan:')) {
-    targetIp = val.replace('lan:', '');
-  } else if (val.startsWith('manual:')) {
-    const ip = prompt('请输入目标 IP 地址:');
-    if (!ip) return;
-    targetIp = ip;
+    const parts = val.replace('lan:', '').split(':');
+    targetIp = parts[0];
+    const targetPort = parseInt(parts[1]) || 34567;
+    // 将端口信息添加到targetUrl
+    targetUrl = `local://${targetIp}:${targetPort}`;
   }
-
+  
   isSending = true;
   sendCompleted = false;
   currentSendingIndex = -1;
@@ -482,6 +896,35 @@ function formatSize(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
+// 扫描局域网设备
+async function scanLanDevices() {
+  if (btnScanLan) {
+    btnScanLan.disabled = true;
+    btnScanLan.style.opacity = '0.5';
+  }
+  
+  try {
+    const devices = await window.api.scanLanDevices();
+    console.log('扫描到的设备:', devices);
+    
+    if (devices && devices.length > 0) {
+      // 更新设备列表
+      buildTargetList(destinations, devices);
+      alert(`发现 ${devices.length} 个设备！`);
+    } else {
+      alert('未发现其他设备，请确保其他设备正在运行文件传输应用。');
+    }
+  } catch (err) {
+    console.error('扫描失败:', err);
+    alert('扫描失败: ' + err.message);
+  } finally {
+    if (btnScanLan) {
+      btnScanLan.disabled = false;
+      btnScanLan.style.opacity = '1';
+    }
+  }
 }
 
 init();

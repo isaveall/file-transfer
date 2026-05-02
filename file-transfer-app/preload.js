@@ -2,22 +2,29 @@
 // file-transfer/preload.js - 预加载脚本
 // ============================================================
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // 文件选择
   selectFiles: () => ipcRenderer.invoke('select-files'),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
+  
+  // 获取拖拽文件路径（使用 webUtils）
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 
   // 设备
   getDevices: () => ipcRenderer.invoke('get-devices'),
   getLocalInfo: () => ipcRenderer.invoke('get-local-info'),
+  changePort: (port) => ipcRenderer.invoke('change-port', port),
+  onPortChanged: (cb) => ipcRenderer.on('port-changed', (_e, data) => cb(data)),
+  scanLanDevices: () => ipcRenderer.invoke('scan-lan-devices'),
 
   // 目标管理
   getDestinations: () => ipcRenderer.invoke('get-destinations'),
   addDestination: (dest) => ipcRenderer.invoke('add-destination', dest),
   deleteDestination: (id) => ipcRenderer.invoke('delete-destination', id),
   updateDestination: (id, updates) => ipcRenderer.invoke('update-destination', id, updates),
+  setDefaultDestination: (id) => ipcRenderer.invoke('set-default-destination', id),
   openDestManager: () => ipcRenderer.invoke('open-dest-manager'),
 
   // 发送
@@ -46,4 +53,8 @@ contextBridge.exposeInMainWorld('api', {
   
   // 调试日志
   writeDebugLog: (msg) => ipcRenderer.invoke('write-debug-log', msg),
+  
+  // 拖拽文件/文件夹路径验证
+  validateDragFile: (filePath) => ipcRenderer.invoke('validate-drag-file', filePath),
+  validateDragFolder: (folderPath) => ipcRenderer.invoke('validate-drag-folder', folderPath),
 });

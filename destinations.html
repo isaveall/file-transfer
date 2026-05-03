@@ -52,6 +52,7 @@
         </button>
       </div>
       <div class="dest-footer-right">
+        <button id="btnSetDefault" class="dest-btn dest-btn-default" title="设为默认">⭐ 默认</button>
         <button id="btnEditDest" class="dest-btn dest-btn-edit" title="编辑选中">✏️ 编辑</button>
       </div>
     </div>
@@ -95,10 +96,14 @@
           <input type="text" id="formUser" placeholder="admin" />
         </div>
 
-        <!-- Authentication: Password / Key file -->
+        <!-- Authentication: Anonymous / Password / Key file -->
         <div class="form-row-sftp" id="authRow">
           <label>Authentication:</label>
           <div class="auth-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="ftpAnonymous" />
+              <span>匿名登录</span>
+            </label>
             <label class="radio-label">
               <input type="radio" name="authType" value="password" id="authPassword" checked />
               <span>Password</span>
@@ -124,12 +129,38 @@
             <button id="btnBrowseKey" class="dest-btn btn-browse">浏览...</button>
           </div>
         </div>
+
+        <!-- FTP 特定配置 -->
+        <div id="ftpConfig" style="display:none;">
+          <!-- 第一行：连接模式 -->
+          <div class="form-row-sftp">
+            <label>选择模式:</label>
+            <select id="ftpMode" class="config-select-compact">
+              <option value="passive" selected>被动模式</option>
+              <option value="active">主动模式</option>
+            </select>
+          </div>
+          
+          <!-- 第二行：TLS/SSL -->
+          <div class="form-row-sftp">
+            <label>TLS/SSL:</label>
+            <select id="ftpTls" class="config-select-compact">
+              <option value="none" selected>None</option>
+              <option value="explicit">Explicit</option>
+              <option value="implicit">Implicit</option>
+            </select>
+          </div>
+        </div>
+
       </div>
 
       <!-- Cancel / Update 按钮 -->
-      <div class="modal-footer-sftp">
-        <button id="btnModalCancel" class="dest-btn">Cancel</button>
-        <button id="btnModalSave" class="dest-btn dest-btn-primary"><span id="btnSaveLabel">Update</span></button>
+      <div class="form-row-sftp">
+        <label></label>
+        <div class="modal-buttons">
+          <button id="btnModalCancel" class="dest-btn">Cancel</button>
+          <button id="btnModalSave" class="dest-btn dest-btn-primary"><span id="btnSaveLabel">Update</span></button>
+        </div>
       </div>
     </div>
   </div>

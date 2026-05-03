@@ -22,6 +22,7 @@ async function init() {
   $('#btnAddDest').addEventListener('click', toggleAddMenu);
   $('#btnDeleteDest').addEventListener('click', deleteSelected);
   $('#btnEditDest').addEventListener('click', editSelected);
+  $('#btnSetDefault').addEventListener('click', setDefaultSelected);
   $('#btnModalCancel').addEventListener('click', closeModal);
   $('#btnModalSave').addEventListener('click', saveModal);
   const btnBrowse = $('#btnBrowseKey');
@@ -75,7 +76,7 @@ function renderList() {
   for (let i = 0; i < destinations.length; i++) {
     const d = destinations[i];
     const row = document.createElement('div');
-    row.className = 'dest-item' + (i === selectedIndex ? ' selected' : '');
+    row.className = 'dest-item' + (i === selectedIndex ? ' selected' : '') + (d.isDefault ? ' default' : '');
     row.dataset.index = i;
 
     const icon = document.createElement('div');
@@ -85,6 +86,15 @@ function renderList() {
     const name = document.createElement('div');
     name.className = 'dest-name';
     name.textContent = d.name;
+    
+    // 如果是默认目标，添加默认标记
+    if (d.isDefault) {
+      const defaultMark = document.createElement('span');
+      defaultMark.className = 'default-mark';
+      defaultMark.textContent = '⭐';
+      defaultMark.title = '默认目标';
+      name.appendChild(defaultMark);
+    }
 
     const url = document.createElement('div');
     url.className = 'dest-url';
@@ -102,7 +112,18 @@ function renderList() {
 function buildUrl(d) {
   if (d.type === 'local') return `${d.host}:${d.port}`;
   const user = d.user ? `${encodeURIComponent(d.user)}:${encodeURIComponent(d.pass || '')}@` : '';
-  return `${d.type}://${user}${d.host}:${d.port}${d.path || '/'}`;
+  
+  // 确定协议
+  let protocol = d.type;
+  if (d.type === 'webdav') {
+    // WebDAV 使用 http 或 https
+    protocol = d.port === 443 ? 'https' : 'http';
+  } else if (d.type === 'ftp' && d.tls && d.tls !== 'none') {
+    // FTP 使用 TLS 时使用 ftps
+    protocol = 'ftps';
+  }
+  
+  return `${protocol}://${user}${d.host}:${d.port}${d.path || '/'}`;
 }
 
 function toggleAddMenu() {
@@ -113,6 +134,22 @@ async function deleteSelected() {
   if (selectedIndex < 0 || selectedIndex >= destinations.length) return;
   destinations = await window.api.deleteDestination(destinations[selectedIndex].id);
   selectedIndex = -1;
+  renderList();
+}
+
+async function setDefaultSelected() {
+  if (selectedIndex < 0 || selectedIndex >= destinations.length) return;
+  const selectedDest = destinations[selectedIndex];
+  
+  // 如果已经是默认目标，则取消默认
+  if (selectedDest.isDefault) {
+    // 取消默认 - 设置一个不存在的ID
+    destinations = await window.api.setDefaultDestination('');
+  } else {
+    // 设置为默认
+    destinations = await window.api.setDefaultDestination(selectedDest.id);
+  }
+  
   renderList();
 }
 
@@ -150,6 +187,29 @@ function editSelected() {
   $('#loginRow').style.display = d.type === 'local' ? 'none' : 'flex';
   $('#authRow').style.display = d.type === 'local' ? 'none' : 'flex';
 
+  // FTP/SFTP特定配置
+  if (d.type === 'ftp') {
+    // 显示FTP特定配置
+    if ($('#ftpConfig')) $('#ftpConfig').style.display = 'block';
+    // 显示匿名登录复选框
+    if ($('#ftpAnonymous')) $('#ftpAnonymous').parentElement.style.display = 'flex';
+    
+    // 填充FTP配置
+    if ($('#ftpAnonymous')) $('#ftpAnonymous').checked = d.anonymous || false;
+    if ($('#ftpMode')) $('#ftpMode').value = d.ftpMode || 'passive';
+    if ($('#ftpTls')) $('#ftpTls').value = d.tls || 'none';
+  } else if (d.type === 'sftp') {
+    // SFTP不需要额外配置，隐藏FTP配置
+    if ($('#ftpConfig')) $('#ftpConfig').style.display = 'none';
+    // 隐藏匿名登录复选框
+    if ($('#ftpAnonymous')) $('#ftpAnonymous').parentElement.style.display = 'none';
+  } else {
+    // 其他类型隐藏FTP/SFTP配置
+    if ($('#ftpConfig')) $('#ftpConfig').style.display = 'none';
+    // 隐藏匿名登录复选框
+    if ($('#ftpAnonymous')) $('#ftpAnonymous').parentElement.style.display = 'none';
+  }
+
   // 按钮文字
   const lbl = $('#btnSaveLabel');
   if (lbl) lbl.textContent = 'Update';
@@ -178,6 +238,29 @@ function openModal(type) {
   $('#keyfileRow').style.display = 'none';
   $('#loginRow').style.display = type === 'local' ? 'none' : 'flex';
   $('#authRow').style.display = type === 'local' ? 'none' : 'flex';
+
+    // FTP/SFTP特定配置
+    if (type === 'ftp') {
+      // 显示FTP特定配置
+      if ($('#ftpConfig')) $('#ftpConfig').style.display = 'block';
+      // 显示匿名登录复选框
+      if ($('#ftpAnonymous')) $('#ftpAnonymous').parentElement.style.display = 'flex';
+      
+      // 设置默认值
+      if ($('#ftpAnonymous')) $('#ftpAnonymous').checked = false;
+      if ($('#ftpMode')) $('#ftpMode').value = 'passive';
+      if ($('#ftpTls')) $('#ftpTls').value = 'none';
+    } else if (type === 'sftp') {
+      // SFTP不需要额外配置，隐藏FTP配置
+      if ($('#ftpConfig')) $('#ftpConfig').style.display = 'none';
+      // 隐藏匿名登录复选框
+      if ($('#ftpAnonymous')) $('#ftpAnonymous').parentElement.style.display = 'none';
+    } else {
+      // 其他类型隐藏FTP/SFTP配置
+      if ($('#ftpConfig')) $('#ftpConfig').style.display = 'none';
+      // 隐藏匿名登录复选框
+      if ($('#ftpAnonymous')) $('#ftpAnonymous').parentElement.style.display = 'none';
+    }
 
   const lbl2 = $('#btnSaveLabel');
   if (lbl2) lbl2.textContent = 'Add';
@@ -211,12 +294,23 @@ async function saveModal() {
   if (!host) { alert('请输入主机地址'); return; }
 
   // 判断类型 (根据弹窗标题)
-  const typeLabel = $('#modalTypeLabel').textContent.toLowerCase();
-  const type = Object.entries(typeLabels).find(([k, v]) => v.toUpperCase() === typeLabel)?.[0] || 'sftp';
+  const typeLabel = $('#modalTypeLabel').textContent;
+  const type = Object.entries(typeLabels).find(([k, v]) => v.toUpperCase() === typeLabel.toUpperCase())?.[0] || 'sftp';
 
   const displayName = name || `${typeLabels[type]} - ${host}`;
 
+  // 创建基础目标对象
   const dest = { name: displayName, type, host, port, path, user, pass, keyPath, authType };
+
+  // 根据类型添加特定配置
+  if (type === 'ftp') {
+    dest.anonymous = $('#ftpAnonymous') ? $('#ftpAnonymous').checked : false;
+    dest.ftpMode = $('#ftpMode') ? $('#ftpMode').value : 'passive';
+    dest.tls = $('#ftpTls') ? $('#ftpTls').value : 'none';
+  } else if (type === 'sftp') {
+    // SFTP不需要额外配置
+    dest.tls = 'none';
+  }
 
   if (editingId) {
     destinations = await window.api.updateDestination(editingId, dest);

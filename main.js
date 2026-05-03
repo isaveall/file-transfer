@@ -201,7 +201,14 @@ const Logger = {
   debug: (msg, data = null) => {
     if (Logger.currentLevel <= Logger.LEVELS.DEBUG) {
       const message = Logger.formatMessage('DEBUG', msg, data);
-      console.debug(message);
+      try {
+        console.debug(message);
+      } catch (e) {
+        // 忽略EPIPE错误
+        if (e.code !== 'EPIPE') {
+          process.stderr.write(`Logger error: ${e.message}\n`);
+        }
+      }
       Logger.writeToFile(message);
     }
   },
@@ -209,7 +216,14 @@ const Logger = {
   info: (msg, data = null) => {
     if (Logger.currentLevel <= Logger.LEVELS.INFO) {
       const message = Logger.formatMessage('INFO', msg, data);
-      console.log(message);
+      try {
+        console.log(message);
+      } catch (e) {
+        // 忽略EPIPE错误
+        if (e.code !== 'EPIPE') {
+          process.stderr.write(`Logger error: ${e.message}\n`);
+        }
+      }
       Logger.writeToFile(message);
     }
   },
@@ -217,7 +231,14 @@ const Logger = {
   warn: (msg, data = null) => {
     if (Logger.currentLevel <= Logger.LEVELS.WARN) {
       const message = Logger.formatMessage('WARN', msg, data);
-      console.warn(message);
+      try {
+        console.warn(message);
+      } catch (e) {
+        // 忽略EPIPE错误
+        if (e.code !== 'EPIPE') {
+          process.stderr.write(`Logger error: ${e.message}\n`);
+        }
+      }
       Logger.writeToFile(message);
     }
   },
@@ -225,7 +246,14 @@ const Logger = {
   error: (msg, data = null) => {
     if (Logger.currentLevel <= Logger.LEVELS.ERROR) {
       const message = Logger.formatMessage('ERROR', msg, data);
-      console.error(message);
+      try {
+        console.error(message);
+      } catch (e) {
+        // 忽略EPIPE错误
+        if (e.code !== 'EPIPE') {
+          process.stderr.write(`Logger error: ${e.message}\n`);
+        }
+      }
       Logger.writeToFile(message);
     }
   },
@@ -247,6 +275,7 @@ let mainWindow = null;
 let destWindow = null;
 let server = null;
 let udpSocket = null;
+let ipcServer = null; // Finder扩展IPC服务器
 let discoveredDevices = new Map();
 let deviceId = crypto.randomBytes(8).toString('hex');
 let deviceName = os.hostname();
@@ -1405,6 +1434,174 @@ function startServer() {
   });
 }
 
+// 启动Finder扩展IPC服务器
+function startIPCServer() {
+  Logger.info('启动Finder扩展IPC服务器');
+  
+  const ipcPort = 34569; // Finder扩展使用的端口
+  
+  // 先检查端口是否被占用
+  isPortAvailable(ipcPort).then((available) => {
+    if (!available) {
+      Logger.error('IPC端口被占用，无法启动IPC服务器', { port: ipcPort });
+      console.error('[IPC] 端口34569被占用，请关闭占用该端口的进程');
+      return;
+    }
+
+    ipcServer = net.createServer((socket) => {
+      const clientAddress = `${socket.remoteAddress}:${socket.remotePort}`;
+      Logger.info('Finder扩展连接', { client: clientAddress });
+      try {
+        console.log('[IPC] 新连接:', clientAddress);
+      } catch (e) {
+        if (e.code !== 'EPIPE') {
+          process.stderr.write(`[IPC] 新连接: ${clientAddress}\n`);
+        }
+      }
+      
+      let dataBuffer = Buffer.alloc(0);
+      
+      socket.on('data', (chunk) => {
+        try {
+          console.log('[IPC] 收到数据块:', chunk.length, '字节');
+          console.log('[IPC] 数据内容:', chunk.toString('utf8'));
+          console.log('[IPC] 数据内容长度:', chunk.toString('utf8').length);
+        } catch (e) {
+          if (e.code !== 'EPIPE') {
+            process.stderr.write(`[IPC] 收到数据块: ${chunk.length} 字节\\n`);
+          }
+        }
+        try {
+          dataBuffer = Buffer.concat([dataBuffer, chunk]);
+          Logger.info('收到数据', { length: chunk.length, totalLength: dataBuffer.length });
+          try {
+            console.log('[IPC] 缓冲区总长度:', dataBuffer.length);
+          } catch (e) {
+            if (e.code !== 'EPIPE') {
+              process.stderr.write(`[IPC] 缓冲区总长度: ${dataBuffer.length}\\n`);
+            }
+          }
+          
+          // 尝试解析JSON数据
+          const dataStr = dataBuffer.toString('utf8');
+          Logger.info('收到数据内容', { content: dataStr });
+          try {
+            console.log('[IPC] 数据内容:', dataStr);
+          } catch (e) {
+            if (e.code !== 'EPIPE') {
+              process.stderr.write(`[IPC] 数据内容: ${dataStr}\n`);
+            }
+          }
+          
+          try {
+            const message = JSON.parse(dataStr);
+            Logger.info('收到Finder扩展消息', { message });
+            try {
+              console.log('[IPC] 解析成功:', JSON.stringify(message));
+            } catch (e) {
+              if (e.code !== 'EPIPE') {
+                process.stderr.write(`[IPC] 解析成功: ${JSON.stringify(message)}\n`);
+              }
+            }
+            
+            // 处理addFiles动作
+            if (message.action === 'addFiles' && Array.isArray(message.files)) {
+              Logger.info('从Finder扩展收到文件', { count: message.files.length, files: message.files });
+              
+              // 验证文件路径
+              const validFiles = [];
+              for (const filePath of message.files) {
+                if (typeof filePath === 'string' && fs.existsSync(filePath)) {
+                  const stat = fs.statSync(filePath);
+                  if (stat.isFile() || stat.isDirectory()) {
+                    validFiles.push({
+                      path: filePath,
+                      name: path.basename(filePath),
+                      size: stat.isFile() ? stat.size : 0,
+                      isFolder: stat.isDirectory()
+                    });
+                  }
+                }
+              }
+              
+              if (validFiles.length > 0) {
+                // 如果主窗口不存在，创建它
+                if (!mainWindow) {
+                  Logger.info('主窗口不存在，重新创建');
+                  createWindow();
+
+                  const sendFiles = () => {
+                    if (mainWindow) {
+                      mainWindow.show();
+                      mainWindow.focus();
+                      mainWindow.setAlwaysOnTop(true);
+                      setTimeout(() => mainWindow.setAlwaysOnTop(false), 500);
+                      mainWindow.webContents.send('add-files-from-context', validFiles);
+                      Logger.info('已将文件发送到渲染进程（新窗口）', { count: validFiles.length });
+                    }
+                  };
+
+                  if (mainWindow.webContents.isLoading()) {
+                    mainWindow.webContents.once('did-finish-load', sendFiles);
+                  } else {
+                    // 页面已加载完成（极少见），直接发送
+                    sendFiles();
+                  }
+                } else {
+                  // 窗口已存在，直接发送
+                  mainWindow.show();
+                  mainWindow.focus();
+                  mainWindow.setAlwaysOnTop(true);
+                  setTimeout(() => mainWindow.setAlwaysOnTop(false), 500);
+                  mainWindow.webContents.send('add-files-from-context', validFiles);
+                  Logger.info('已将文件发送到渲染进程', { count: validFiles.length });
+                }
+              }
+            }
+            
+            // 清空缓冲区
+            dataBuffer = Buffer.alloc(0);
+          } catch (e) {
+            // JSON解析失败，可能数据不完整，继续等待
+            Logger.debug('等待更多数据...', { bufferLength: dataBuffer.length });
+          }
+        } catch (e) {
+          Logger.error('处理Finder扩展数据失败', { error: e.message });
+        }
+      });
+      
+      socket.on('error', (err) => {
+        Logger.warn('Finder扩展socket错误', { error: err.message });
+      });
+      
+      socket.on('close', () => {
+        Logger.debug('Finder扩展连接关闭', { client: clientAddress });
+      });
+    });
+    
+    ipcServer.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        Logger.error('IPC端口被占用，无法启动', { port: ipcPort, error: err.message });
+        console.error('[IPC] 端口34569被占用，请关闭占用该端口的进程');
+      } else {
+        Logger.error('IPC服务器错误', { error: err.message });
+      }
+    });
+    
+    // 绑定到所有网络接口，确保Quick Action可以连接
+    ipcServer.listen(ipcPort, '0.0.0.0', () => {
+      Logger.info('Finder扩展IPC服务器已启动', { port: ipcPort });
+      try {
+        console.log('[IPC] 服务器监听在端口', ipcPort);
+      } catch (e) {
+        if (e.code !== 'EPIPE') {
+          process.stderr.write(`[IPC] 服务器监听在端口 ${ipcPort}\n`);
+        }
+      }
+    });
+  });
+}
+
 // 重启服务器（更改端口后调用）
 function restartServer(newPort) {
   if (server) {
@@ -2379,6 +2576,357 @@ ipcMain.handle('validate-drag-folder', (event, folderInfo) => {
   }
 });
 
+// 检查右键菜单是否已安装
+ipcMain.handle('check-context-menu-installed', async () => {
+  try {
+    const workflowPath = path.join(os.homedir(), 'Library', 'Services', 'Transfer to 文件传输.workflow');
+    return fs.existsSync(workflowPath);
+  } catch (e) {
+    return false;
+  }
+});
+
+// 安装右键菜单功能
+ipcMain.handle('install-context-menu', async () => {
+  try {
+    const { execSync } = require('child_process');
+    const workflowName = 'Transfer to 文件传输.workflow';
+    const servicesDir = path.join(os.homedir(), 'Library', 'Services');
+    const workflowPath = path.join(servicesDir, workflowName);
+    const contentsDir = path.join(workflowPath, 'Contents');
+
+    // 先清理旧版本
+    const disabledPath = workflowPath + '.disabled';
+    if (fs.existsSync(workflowPath)) {
+      fs.rmSync(workflowPath, { recursive: true, force: true });
+    }
+    if (fs.existsSync(disabledPath)) {
+      fs.rmSync(disabledPath, { recursive: true, force: true });
+    }
+
+    Utils.safeMkdirSync(contentsDir);
+
+    // ---- Info.plist ----
+    // 简化 NSServices 声明，移除 NSRequiredContext 和 NSSendTypes
+    // 以提高在 macOS 15+ 上的兼容性
+    fs.writeFileSync(path.join(contentsDir, 'Info.plist'), [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+      '<plist version="1.0">',
+      '<dict>',
+      '\t<key>CFBundleDevelopmentRegion</key>',
+      '\t<string>en</string>',
+      '\t<key>CFBundleIdentifier</key>',
+      '\t<string>com.xiamu.filetransfer.quickaction</string>',
+      '\t<key>CFBundleInfoDictionaryVersion</key>',
+      '\t<string>6.0</string>',
+      '\t<key>CFBundleName</key>',
+      '\t<string>Transfer to 文件传输</string>',
+      '\t<key>CFBundlePackageType</key>',
+      '\t<string>BNDL</string>',
+      '\t<key>CFBundleShortVersionString</key>',
+      '\t<string>1.0</string>',
+      '\t<key>CFBundleVersion</key>',
+      '\t<string>1</string>',
+      '\t<key>NSServices</key>',
+      '\t<array>',
+      '\t\t<dict>',
+      '\t\t\t<key>NSMenuItem</key>',
+      '\t\t\t<dict>',
+      '\t\t\t\t<key>default</key>',
+      '\t\t\t\t<string>Transfer to 文件传输</string>',
+      '\t\t\t</dict>',
+      '\t\t\t<key>NSMessage</key>',
+      '\t\t\t<string>runWorkflowAsService</string>',
+      '\t\t\t<key>NSSendFileTypes</key>',
+      '\t\t\t<array>',
+      '\t\t\t\t<string>public.item</string>',
+      '\t\t\t</array>',
+      '\t\t</dict>',
+      '\t</array>',
+      '</dict>',
+      '</plist>',
+    ].join('\n'));
+
+    // ---- 自包含 shell 脚本 ----
+    // 既支持参数传入(automator PassInput=as arguments)也支持 stdin
+    // 日志写入 /tmp/file-transfer-quick-action.log 方便调试
+    const shellScript = [
+      '#!/bin/bash',
+      'QA_LOG="/tmp/file-transfer-quick-action.log"',
+      'echo "=== $(date) ===" >> "$QA_LOG"',
+      'echo "argc=$#  args=$*" >> "$QA_LOG"',
+      '',
+      '# 收集文件路径',
+      'FILE_ARGS=()',
+      'if [ $# -gt 0 ]; then',
+      '    FILE_ARGS=("$@")',
+      '    echo "source=args  count=${#FILE_ARGS[@]}" >> "$QA_LOG"',
+      'else',
+      '    # 从 stdin 读取（automator CLI 和部分 Quick Action 用 stdin）',
+      '    while IFS= read -r line || [ -n "$line" ]; do',
+      '        [ -n "$line" ] && FILE_ARGS+=("$line")',
+      '    done',
+      '    echo "source=stdin  count=${#FILE_ARGS[@]}" >> "$QA_LOG"',
+      'fi',
+      '',
+      'echo "files: ${FILE_ARGS[*]}" >> "$QA_LOG"',
+      '[ ${#FILE_ARGS[@]} -eq 0 ] && echo "NO FILES, exit" >> "$QA_LOG" && exit 0',
+      '',
+      '# 如果应用未运行则启动',
+      'APP_NAME="文件传输"',
+      'if ! pgrep -fl "$APP_NAME" >> "$QA_LOG" 2>&1; then',
+      '    echo "App not running, starting..." >> "$QA_LOG"',
+      '    open -a "$APP_NAME"',
+      '    for i in $(seq 1 30); do',
+      '        sleep 0.5',
+      '        pgrep -fl "$APP_NAME" > /dev/null 2>&1 && break',
+      '    done',
+      '    echo "Waiting for IPC server..." >> "$QA_LOG"',
+      '    # 等待 IPC 服务器端口就绪（最多 10 秒）',
+      '    for i in $(seq 1 20); do',
+      '        (echo >/dev/tcp/127.0.0.1/34569) 2>/dev/null && break',
+      '        sleep 0.5',
+      '    done',
+      '    sleep 1',
+      'fi',
+      '',
+      '# 通过 Python 发送文件路径到 IPC 服务器',
+      'python3 -c \'',
+      'import json,socket,sys,time',
+      'log=open("/tmp/file-transfer-quick-action.log","a")',
+      'f=sys.argv[1:]',
+      'log.write("python: files="+str(f)+"\\n")',
+      'log.flush()',
+      'if not f:sys.exit(0)',
+      'm=json.dumps({"action":"addFiles","files":f,"timestamp":int(time.time())})',
+      'for i in range(10):',
+      ' try:',
+      '  s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)',
+      '  s.settimeout(3)',
+      '  s.connect(("127.0.0.1",34569))',
+      '  s.sendall(m.encode("utf-8"))',
+      '  s.shutdown(socket.SHUT_WR)',
+      '  s.close()',
+      '  log.write("python: sent OK\\n")',
+      '  log.flush()',
+      '  sys.exit(0)',
+      ' except Exception as e:',
+      '  log.write("python: attempt "+str(i)+" failed: "+str(e)+"\\n")',
+      '  log.flush()',
+      '  try:s.close()',
+      '  except:pass',
+      '  time.sleep(1)',
+      'log.write("python: FAILED all attempts\\n")',
+      'sys.exit(1)',
+      '\' "${FILE_ARGS[@]}"',
+      'echo "=== done exit=$? ===" >> "$QA_LOG"',
+    ].join('\n');
+
+    // ---- document.wflow ----
+    // 使用与真实 Automator 创建的 workflow 一致的精简结构
+    // 移除了 InputSourceTypes/OutputSourceTypes 等会导致 Service 不触发的字段
+    const documentWflow = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+      '<plist version="1.0">',
+      '<dict>',
+      '\t<key>actions</key>',
+      '\t<array>',
+      '\t\t<dict>',
+      '\t\t\t<key>action</key>',
+      '\t\t\t<dict>',
+      '\t\t\t\t<key>AMAccepts</key>',
+      '\t\t\t\t<dict>',
+      '\t\t\t\t\t<key>Container</key>',
+      '\t\t\t\t\t<string>List</string>',
+      '\t\t\t\t\t<key>Optional</key>',
+      '\t\t\t\t\t<true/>',
+      '\t\t\t\t\t<key>Types</key>',
+      '\t\t\t\t\t<array>',
+      '\t\t\t\t\t\t<string>com.apple.cocoa.string</string>',
+      '\t\t\t\t\t</array>',
+      '\t\t\t\t</dict>',
+      '\t\t\t\t<key>AMActionVersion</key>',
+      '\t\t\t\t<string>2.0.3</string>',
+      '\t\t\t\t<key>AMBundleIdentifier</key>',
+      '\t\t\t\t<string>com.apple.RunShellScript</string>',
+      '\t\t\t\t<key>ActionParameters</key>',
+      '\t\t\t\t<dict>',
+      '\t\t\t\t\t<key>COMMAND_STRING</key>',
+      '\t\t\t\t\t<string>' + shellScript.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</string>',
+      '\t\t\t\t\t<key>Shell</key>',
+      '\t\t\t\t\t<string>/bin/bash</string>',
+      '\t\t\t\t\t<key>inputMethod</key>',
+      '\t\t\t\t\t<integer>0</integer>',
+      '\t\t\t\t</dict>',
+      '\t\t\t\t<key>AMProvides</key>',
+      '\t\t\t\t<dict>',
+      '\t\t\t\t\t<key>Container</key>',
+      '\t\t\t\t\t<string>List</string>',
+      '\t\t\t\t\t<key>Types</key>',
+      '\t\t\t\t\t<array>',
+      '\t\t\t\t\t\t<string>com.apple.cocoa.string</string>',
+      '\t\t\t\t\t</array>',
+      '\t\t\t\t</dict>',
+      '\t\t\t\t<key>BundleIdentifier</key>',
+      '\t\t\t\t<string>com.apple.RunShellScript</string>',
+      '\t\t\t\t<key>PassInput</key>',
+      '\t\t\t\t<string>as arguments</string>',
+      '\t\t\t</dict>',
+      '\t\t</dict>',
+      '\t</array>',
+      '\t<key>connectors</key>',
+      '\t<dict/>',
+      '\t<key>workflowMetaData</key>',
+      '\t<dict>',
+      '\t\t<key>applicationBundleID</key>',
+      '\t\t<string>com.apple.finder</string>',
+      '\t\t<key>workflowTypeIdentifier</key>',
+      '\t\t<string>com.apple.Automator.servicesMenuWorkflow</string>',
+      '\t</dict>',
+      '</dict>',
+      '</plist>',
+    ].join('\n');
+    fs.writeFileSync(path.join(contentsDir, 'document.wflow'), documentWflow);
+
+    // 刷新服务缓存
+    try {
+      execSync('/System/Library/CoreServices/pbs -flush', { timeout: 5000 });
+    } catch (e) {
+      Logger.warn('刷新服务缓存失败', { error: e.message });
+    }
+
+    Logger.info('右键菜单功能安装成功', { path: workflowPath });
+    return { success: true, path: workflowPath };
+  } catch (e) {
+    Logger.error('安装右键菜单功能失败', { error: e.message });
+    return { success: false, error: e.message };
+  }
+});
+
+// 检查右键菜单是否已启用
+ipcMain.handle('check-context-menu-enabled', async () => {
+  try {
+    const workflowPath = path.join(os.homedir(), 'Library', 'Services', 'Transfer to 文件传输.workflow');
+    const disabledPath = workflowPath + '.disabled';
+    
+    // 如果.workflow文件夹存在且.disabled文件不存在，则已启用
+    return fs.existsSync(workflowPath) && !fs.existsSync(disabledPath);
+  } catch (e) {
+    return false;
+  }
+});
+
+// 启用右键菜单
+ipcMain.handle('enable-context-menu', async () => {
+  try {
+    const servicesDir = path.join(os.homedir(), 'Library', 'Services');
+    const disabledPath = path.join(servicesDir, 'Transfer to 文件传输.workflow.disabled');
+    const enabledPath = path.join(servicesDir, 'Transfer to 文件传输.workflow');
+    
+    // 如果.disabled文件存在，重命名为.workflow
+    if (fs.existsSync(disabledPath)) {
+      fs.renameSync(disabledPath, enabledPath);
+      
+      // 刷新服务缓存
+      try {
+        const { execSync } = require('child_process');
+        execSync('/System/Library/CoreServices/pbs -flush', { timeout: 5000 });
+      } catch (e) {
+        Logger.warn('刷新服务缓存失败', { error: e.message });
+      }
+      
+      Logger.info('右键菜单功能已启用');
+      return { success: true, enabled: true };
+    } else if (fs.existsSync(enabledPath)) {
+      // 已经是启用状态
+      return { success: true, enabled: true };
+    } else {
+      // 文件不存在，需要先安装
+      return { success: false, error: '右键菜单未安装，请先安装' };
+    }
+  } catch (e) {
+    Logger.error('启用右键菜单失败', { error: e.message });
+    return { success: false, error: e.message };
+  }
+});
+
+// 禁用右键菜单
+ipcMain.handle('disable-context-menu', async () => {
+  try {
+    const servicesDir = path.join(os.homedir(), 'Library', 'Services');
+    const enabledPath = path.join(servicesDir, 'Transfer to 文件传输.workflow');
+    const disabledPath = path.join(servicesDir, 'Transfer to 文件传输.workflow.disabled');
+    
+    // 如果.workflow文件夹存在，重命名为.disabled
+    if (fs.existsSync(enabledPath)) {
+      fs.renameSync(enabledPath, disabledPath);
+      
+      // 刷新服务缓存
+      try {
+        const { execSync } = require('child_process');
+        execSync('/System/Library/CoreServices/pbs -flush', { timeout: 5000 });
+      } catch (e) {
+        Logger.warn('刷新服务缓存失败', { error: e.message });
+      }
+      
+      Logger.info('右键菜单功能已禁用');
+      return { success: true, enabled: false };
+    } else if (fs.existsSync(disabledPath)) {
+      // 已经是禁用状态
+      return { success: true, enabled: false };
+    } else {
+      // 文件不存在
+      return { success: false, error: '右键菜单未安装' };
+    }
+  } catch (e) {
+    Logger.error('禁用右键菜单失败', { error: e.message });
+    return { success: false, error: e.message };
+  }
+});
+
+// 卸载右键菜单
+ipcMain.handle('uninstall-context-menu', async () => {
+  try {
+    const servicesDir = path.join(os.homedir(), 'Library', 'Services');
+    const workflowPath = path.join(servicesDir, 'Transfer to 文件传输.workflow');
+    const disabledPath = workflowPath + '.disabled';
+
+    let removed = false;
+    if (fs.existsSync(workflowPath)) {
+      fs.rmSync(workflowPath, { recursive: true, force: true });
+      removed = true;
+    }
+    if (fs.existsSync(disabledPath)) {
+      fs.rmSync(disabledPath, { recursive: true, force: true });
+      removed = true;
+    }
+
+    // 清理辅助脚本
+    const helperDir = path.join(app.getPath('userData'), 'quick-action-helper');
+    if (fs.existsSync(helperDir)) {
+      fs.rmSync(helperDir, { recursive: true, force: true });
+    }
+
+    if (removed) {
+      try {
+        const { execSync } = require('child_process');
+        execSync('/System/Library/CoreServices/pbs -flush', { timeout: 5000 });
+      } catch (e) {
+        Logger.warn('刷新服务缓存失败', { error: e.message });
+      }
+      Logger.info('右键菜单功能已卸载');
+      return { success: true };
+    } else {
+      return { success: true };
+    }
+  } catch (e) {
+    Logger.error('卸载右键菜单失败', { error: e.message });
+    return { success: false, error: e.message };
+  }
+});
+
 ipcMain.on('dest-window-close', () => { if (destWindow) destWindow.close(); });
 
 // ---- 发送文件（支持所有协议） ----
@@ -2553,6 +3101,20 @@ function processArgs(args) {
   }
 }
 
+// 处理 macOS open-file 事件（通过"打开方式"或拖拽到 Dock 图标）
+const pendingOpenFiles = [];
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  Logger.info('收到 open-file 事件', { filePath });
+  if (app.isReady() && mainWindow) {
+    // 应用已就绪，直接处理
+    processArgs([filePath]);
+  } else {
+    // 应用未就绪，暂存文件路径
+    pendingOpenFiles.push(filePath);
+  }
+});
+
 // 单实例锁 - 禁用以允许多实例运行
 // const gotTheLock = app.requestSingleInstanceLock();
 // if (!gotTheLock) {
@@ -2588,6 +3150,7 @@ app.whenReady().then(() => {
   createWindow();
   startServer();
   startDiscovery();
+  startIPCServer(); // 启动Finder扩展IPC服务器
   
   // 处理命令行参数
   // 开发模式: argv = [electron, main.js, ...userArgs]
@@ -2598,11 +3161,18 @@ app.whenReady().then(() => {
   const args = process.argv.slice(1).filter(a => !a.includes('electron') && !a.startsWith('--') && !a.endsWith('.asar') && !a.endsWith('.js'));
   Logger.debug('过滤后的参数', { args });
   processArgs(args);
+
+  // 处理在 app ready 之前收到的 open-file 事件
+  if (pendingOpenFiles.length > 0) {
+    Logger.info('处理暂存的 open-file 事件', { count: pendingOpenFiles.length });
+    processArgs(pendingOpenFiles.splice(0));
+  }
 });
 app.on('window-all-closed', () => { 
-  Logger.info('所有窗口关闭');
+  Logger.info('所有窗口关闭'); 
   if (server) server.close(); 
   if (udpSocket) udpSocket.close(); 
+  if (ipcServer) ipcServer.close(); // 关闭IPC服务器
   app.quit(); 
 });
 app.on('activate', () => { 

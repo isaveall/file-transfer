@@ -1,131 +1,166 @@
-# 文件传输 - 局域网文件传输工具
+# 文件传输工具 - macOS版
 
-一款基于 Electron 开发的局域网文件传输工具，支持多种传输协议，操作简单便捷。
+一个功能强大的局域网文件传输工具，支持 macOS Finder 右键菜单集成。
 
-![Electron](https://img.shields.io/badge/Electron-33.4-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows%2010/11%20%7C%20macOS-green)
+## 主要功能
 
-## ✨ 功能特性
+### 文件传输
+- 局域网内快速传输文件
+- 支持多种传输协议（TCP、FTP、SFTP、WebDAV）
+- 断点续传支持
+- 批量文件传输
 
-### 传输协议
-- 🌐 **局域网传输** - 基于 TCP/UDP，自动发现局域网设备
-- 📁 **FTP 上传** - 支持标准 FTP 服务器
-- 🔒 **SFTP 上传** - 安全的 SSH 文件传输
-- ☁️ **WebDAV 上传** - 支持坚果云等 WebDAV 服务
+### Finder 集成
+- 右键菜单"打开方式"直接发送文件
+- 支持单个文件、多个文件、文件夹
+- 拖拽文件到 Dock 图标添加到传输列表
+- 自动启动应用并添加文件
 
-### 核心功能
-- 📂 **文件夹传输** - 保留完整目录结构，拖拽文件夹作为整体对象
-- 🔄 **断点续传** - 支持传输中断后继续
-- ➖ **移除选中** - 可选择性删除列表中的文件
-- 🚫 **取消传输** - 支持随时取消正在进行的传输
-- 🎯 **右键菜单** - Windows 资源管理器右键快速添加
+### 现代化界面
+- Win11 风格设计
+- 深色主题
+- 响应式布局
+- 实时进度显示
 
-## 📦 下载安装
+## 安装
 
-前往 [Releases](https://github.com/isaveall/file-transfer/releases) 下载最新版本。
+### 下载 DMG
+1. 下载对应架构的 DMG 文件：
+   - Intel Mac: `文件传输-1.0.2.dmg`
+   - Apple Silicon: `文件传输-1.0.2-arm64.dmg`
 
-### 安装右键菜单（可选）
+2. 双击 DMG，将应用拖入 Applications 文件夹
 
-运行程序目录下的 `install.reg` 文件，即可在右键菜单中添加「添加到传输列表」选项。
+## 快速开始
 
-如需卸载右键菜单，运行 `uninstall.reg`。
+### 1. 启动应用
+- 从 Applications 文件夹打开"文件传输"
+- 应用会在后台启动 IPC 服务，等待文件输入
 
-## 🚀 使用方法
+### 2. 添加文件
 
-### 基本操作
+**方法1：右键"打开方式"（推荐）**
+- 在 Finder 中选择文件
+- 右键点击 → 打开方式 → 文件传输
+- 文件会自动添加到传输列表
 
-1. **添加文件**
-   - 点击「添加文件」按钮
-   - 或点击「添加文件夹」按钮
-   - 或直接拖拽文件/文件夹到窗口
-   - 或右键文件 → 「添加到传输列表」
+**方法2：拖拽到 Dock 图标**
+- 将文件或文件夹拖到 Dock 上的"文件传输"图标
+- 应用窗口会弹出并显示已添加的文件
 
-2. **选择目标**
-   - 局域网设备：自动发现，选择设备名称
-   - FTP/SFTP/WebDAV：在「目标管理」中配置
+**方法3：拖拽到应用窗口**
+- 直接将文件拖拽到应用窗口的拖放区域
 
-3. **开始传输**
-   - 点击「发送」按钮
-   - 查看传输进度和状态
-   - 传输完成后自动恢复初始状态
+**方法4：按钮添加**
+- 点击"添加文件"或"添加文件夹"按钮
 
-### 目标管理
+### 3. 选择目标设备
+- 从下拉列表选择目标设备
+- 或手动输入 IP 地址
 
-点击「目标管理」按钮，可以添加/编辑/删除传输目标：
+### 4. 开始传输
+- 点击"发送"按钮
+- 实时查看传输进度
 
-| 类型 | 配置项 |
-|------|--------|
-| FTP | 主机、端口、用户名、密码、远程路径 |
-| SFTP | 主机、端口、用户名、密码、远程路径 |
-| WebDAV | URL、用户名、密码 |
-
-## 🔧 开发
+## 开发
 
 ### 环境要求
-
 - Node.js 18+
-- npm 或 yarn
+- macOS 12+
+- Xcode Command Line Tools
 
-### 本地运行
-
+### 安装依赖
 ```bash
-# 克隆仓库
-git clone https://github.com/isaveall/file-transfer.git
-cd file-transfer
-
-# 安装依赖
 npm install
+```
 
-# 运行开发模式
+### 开发模式运行
+```bash
 npm start
 ```
 
-### 打包构建
-
+### 构建应用
 ```bash
-# 构建 Windows 安装包
-npx electron-builder --win --x64
+# 构建 Finder 扩展
+npm run build:finder-extension
 
-# 构建 macOS 安装包
+# 构建 macOS 应用（含扩展）
+npm run build:mac-with-extension
+
+# 或分步构建
+npm run build:finder-extension
 npm run build:mac
-
-# 复制额外文件（Windows）
-assets\\copy-extras.bat
 ```
 
-## 📁 项目结构
+## 项目结构
 
 ```
 file-transfer/
-├── main.js          # 主进程
-├── preload.js       # 预加载脚本
-├── renderer.js      # 渲染进程（UI逻辑）
-├── index.html       # 主窗口
-├── styles.css       # 样式文件
-├── destinations.*   # 目标管理窗口
-├── assets/          # 额外资源文件
-│   ├── sendto.vbs   # 右键菜单脚本
-│   ├── install.reg  # 注册表安装
-│   └── uninstall.reg # 注册表卸载
-└── package.json
+├── main.js                    # 主进程
+├── renderer.js                # 渲染进程
+├── preload.js                 # 预加载脚本
+├── index.html                 # 主窗口
+├── styles.css                 # 样式
+├── finder-extension/          # Finder 扩展源码
+│   ├── FinderSync.swift
+│   ├── Info.plist
+│   └── FinderSync.entitlements
+├── build-finder-extension.sh  # 扩展构建脚本
+├── afterPack.js               # 打包后处理
+├── create-quick-action.sh     # Quick Action 创建脚本
+└── package.json               # 项目配置
 ```
 
-## 🛠️ 技术栈
+## 技术栈
 
 - **Electron** - 桌面应用框架
-- **Node.js** - 后端逻辑
+- **Node.js** - 后端运行时
+- **Swift** - Finder 扩展开发
 - **ssh2** - SFTP 支持
 - **basic-ftp** - FTP 支持
 - **webdav** - WebDAV 支持
 
-## 📄 许可证
+## 端口使用
+
+| 端口 | 用途 |
+|------|------|
+| 34567 | TCP 文件传输服务器 |
+| 34568 | UDP 设备发现 |
+| 34569 | Finder 扩展 IPC |
+| 34570+ | TCP 设备发现 |
+
+## 更新日志
+
+### v1.0.2
+- 新增 `open-file` 事件处理，支持通过"打开方式"添加文件
+- 新增 `CFBundleDocumentTypes`，应用出现在 Finder"打开方式"菜单
+- 修复 Finder Sync 扩展构建脚本，自动检测 CPU 架构
+- 修复 Automator Service 的 XML 转义问题
+- 简化 Service 的 `document.wflow` 结构，兼容 macOS 15
+
+### v1.0.1
+- 初始发布
+- TCP/UDP 局域网文件传输
+- Finder 扩展 IPC 通信
+- Finder 右键菜单集成
+
+## 故障排除
+
+### 文件无法添加到传输列表
+1. 确认应用已启动（检查菜单栏或 Dock）
+2. 检查 IPC 服务端口 34569 是否正常监听：`lsof -i :34569`
+3. 查看日志文件：`~/Library/Application Support/file-transfer/debug.log`
+
+### 传输失败
+1. 检查网络连接
+2. 确认目标设备在线
+3. 检查防火墙设置
+
+### 应用无法启动
+1. 检查系统版本（需要 macOS 12+）
+2. 重新安装应用
+3. 查看错误日志
+
+## 许可证
 
 MIT License
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
----
-
-由 [isaveall](https://github.com/isaveall) 开发维护

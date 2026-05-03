@@ -57,4 +57,12 @@ contextBridge.exposeInMainWorld('api', {
   // 拖拽文件/文件夹路径验证
   validateDragFile: (filePath) => ipcRenderer.invoke('validate-drag-file', filePath),
   validateDragFolder: (folderPath) => ipcRenderer.invoke('validate-drag-folder', folderPath),
+  
+  // 安装右键菜单功能
+  installContextMenu: () => ipcRenderer.invoke('install-context-menu'),
+  checkContextMenuInstalled: () => ipcRenderer.invoke('check-context-menu-installed'),
+  enableContextMenu: () => ipcRenderer.invoke('enable-context-menu'),
+  disableContextMenu: () => ipcRenderer.invoke('disable-context-menu'),
+  checkContextMenuEnabled: () => ipcRenderer.invoke('check-context-menu-enabled'),
+  uninstallContextMenu: () => ipcRenderer.invoke('uninstall-context-menu'),
 });

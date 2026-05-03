@@ -33,6 +33,8 @@ const btnRemove = $('#btnRemove');
 const btnCancel = $('#btnCancel');
 const btnSend = $('#btnSend');
 const btnClearAll = $('#btnClearAll');
+const contextMenuCheckbox = $('#contextMenuCheckbox');
+const contextMenuLabel = $('#contextMenuLabel');
 const receiveBar = $('#receiveBar');
 const receiveFile = $('#receiveFile');
 const receiveProgressFill = $('#receiveProgressFill');
@@ -338,6 +340,68 @@ async function init() {
   btnCancel.addEventListener('click', cancelTransfer);
   btnSend.addEventListener('click', sendFiles);
   btnClearAll.addEventListener('click', clearAllFiles);
+
+  // 右键菜单开关
+  if (contextMenuCheckbox) {
+    let isInstalled = await window.api.checkContextMenuInstalled();
+    let isEnabled = await window.api.checkContextMenuEnabled();
+
+    // 初始化开关状态
+    const syncToggle = () => {
+      const checked = isInstalled && isEnabled;
+      contextMenuCheckbox.checked = checked;
+      contextMenuCheckbox.disabled = false;
+      contextMenuLabel.classList.toggle('active', checked);
+    };
+    syncToggle();
+
+    contextMenuCheckbox.addEventListener('change', async () => {
+      const wantOn = contextMenuCheckbox.checked;
+      contextMenuCheckbox.disabled = true;
+
+      try {
+        if (wantOn) {
+          // 需要安装或启用
+          if (!isInstalled) {
+            contextMenuLabel.textContent = '安装中...';
+            const result = await window.api.installContextMenu();
+            if (result.success) {
+              isInstalled = true;
+              isEnabled = true;
+              showToast('右键菜单已安装');
+            } else {
+              showToast('安装失败: ' + (result.error || '未知错误'), true);
+            }
+          } else {
+            // 已安装但被禁用，启用它
+            const result = await window.api.enableContextMenu();
+            if (result.success) {
+              isEnabled = true;
+              showToast('右键菜单已启用');
+            } else {
+              showToast('启用失败: ' + (result.error || '未知错误'), true);
+            }
+          }
+        } else {
+          // 卸载
+          contextMenuLabel.textContent = '卸载中...';
+          const result = await window.api.uninstallContextMenu();
+          if (result.success) {
+            isInstalled = false;
+            isEnabled = false;
+            showToast('右键菜单已卸载');
+          } else {
+            showToast('卸载失败: ' + (result.error || '未知错误'), true);
+          }
+        }
+      } catch (error) {
+        showToast('操作失败: ' + error.message, true);
+      }
+
+      contextMenuLabel.textContent = '右键传输';
+      syncToggle();
+    });
+  }
 
   setupDragDrop();
 
@@ -925,6 +989,38 @@ async function scanLanDevices() {
       btnScanLan.style.opacity = '1';
     }
   }
+}
+
+// 轻量 toast 提示
+function showToast(message, isError = false) {
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #fff;
+    background: ${isError ? '#f44336' : '#10b981'};
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 2000;
+    pointer-events: none;
+  `;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(10px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 2000);
 }
 
 init();
